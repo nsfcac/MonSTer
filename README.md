@@ -1,9 +1,9 @@
-# MonSter
+# MonSTer
 
-## About MonSter
-MonSter is an “out-of-the-box” monitoring tool for high-performance computing platforms. It uses the evolving specification Redfish to retrieve sensor data from Baseboard Management Controller, and resource management tools such as Slurm to obtain application information and resource usage data. Additionally, it also uses a time-series database (TimeScaleDB implemented in the code) for data storage. MonSTer correlates applications to resource usage and reveals insightful knowledge without having additional overhead on the application and computing nodes. 
+## About MonSTer
+MonSTer is an “out-of-the-box” monitoring tool for high-performance computing platforms. It uses the evolving specification Redfish to retrieve sensor data from Baseboard Management Controller, and resource management tools such as Slurm to obtain application information and resource usage data. Additionally, it also uses a time-series database (TimeScaleDB implemented in the code) for data storage. MonSTer correlates applications to resource usage and reveals insightful knowledge without having additional overhead on the application and computing nodes. 
 
-For details about MonSter, please refer to the paper: 
+For details about MonSTer, please refer to the paper: 
 ```
 @inproceedings{li2020monster,
   title={MonSTer: an out-of-the-box monitoring tool for high performance computing systems},
@@ -18,7 +18,7 @@ For details about MonSter, please refer to the paper:
 For examples of visualization of data based on the above please see [https://idatavisualizationlab.github.io/HPCC/](https://idatavisualizationlab.github.io/HPCC/).
 
 ## Prerequisite
-MonSter requires that iDRAC nodes (pull model or push model), TimeScaleDB service, and Slurm REST API service can be accessed from the host machine where MonSter is running.
+MonSTer requires that iDRAC nodes (pull model or push model), TimeScaleDB service, and Slurm REST API service can be accessed from the host machine where MonSTer is running.
 
 ## Initial Setup
 
@@ -56,7 +56,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 **Metrics Builder** acts as a middleware between the consumers (i.e. analytic clients or tools) and the producers (i.e. the databases). Its provides APIs for [the web applications](https://idatavisualizationlab.github.io/HPCC/) and accelerates the data query performance.
 
-# Run MonSter and MetricsBuilder
+# Run MonSTer and MetricsBuilder
 
 1. Set up the virtual environment and install the required packages.
 
@@ -110,24 +110,24 @@ This script activates the virtual environment and starts the monster app.
 
 Create:
 ```bash
-/home/username/MonSter/run_monster.sh
+/home/username/MonSTer/run_monster.sh
 ```
 
 Content:
 ```bash
 #!/bin/bash
 # Activate virtual environment
-source /home/username/MonSter/.ven/bin/activate
+source /home/username/MonSTer/.ven/bin/activate
 # Start each script in the background
-python /home/username/MonSter/monster/monit_idrac.py --config=config.yml & 
-python /home/username/MonSter/monster/monit_slurm.py --config=config.yml &
+python /home/username/MonSTer/monster/monit_idrac.py --config=config.yml & 
+python /home/username/MonSTer/monster/monit_slurm.py --config=config.yml &
 # Keep the service running by waiting for all child processes
 wait
 ```
 
 Make it executable:
 ```bash
-chmod +x /home/username/MonSter/run_monster.sh
+chmod +x /home/username/MonSTer/run_monster.sh
 ```
 
 ### Step 2. Create a systemd Service File
@@ -150,8 +150,8 @@ Environment="idrac_password=idrac_pwd"
 Environment="slurm_username=slurm_user"
 Type=simple
 User=username
-WorkingDirectory=/home/username/MonSter
-ExecStart=/home/username/MonSter/run_monster.sh
+WorkingDirectory=/home/username/MonSTer
+ExecStart=/home/username/MonSTer/run_monster.sh
 Restart=always
 RestartSec=5
 
