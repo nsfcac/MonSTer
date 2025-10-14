@@ -60,6 +60,10 @@ def metrics_builder(config,
 
     rename_results = mb_utils.rename_device(metrics_mapping, results)
 
+    # # Write the renamed results to a json file
+    # with open(f"./results-{start.split(' ')[0]}-{end.split(' ')[0]}_rename.json", "w") as f:
+    #     f.write(json.dumps(rename_results, indent=2))
+
     # Reformat the results required by the frontend
     reformat_results = mb_utils.reformat_results(partition, rename_results)
 
@@ -69,8 +73,8 @@ def metrics_builder(config,
 if __name__ == "__main__":
     config = utils.parse_config()
     # For testing purposes
-    start = '2025-06-23 21:00:00-05'
-    end = '2025-06-23 22:10:10-05'
+    start = '2025-07-30 12:00:00-05'
+    end = '2025-07-31 12:00:00-05'
     interval = '5m'
     aggregation = 'max'
     nodelist = ""
@@ -79,12 +83,12 @@ if __name__ == "__main__":
     if utils.get_partition(config) == 'h100':
         nodelist = "10.101.93.[1-8]"
         metrics = ['GPU_Usage', 'GPU_PowerConsumption', 'GPU_MemoryUsage', 'GPU_Temperature', \
-                'CPU_Usage', 'CPU_PowerConsumption', 'CPU_Temperature', 'DRAM_Usage', \
+                'CPU_Usage', 'CPU_PowerConsumption', 'CPU_Temperature', 'Memory_Usage', \
                 'DRAM_PowerConsumption', 'System_PowerConsumption', \
                 'Jobs_Info', 'NodeJobs_Correlation', 'Nodes_State']
     elif utils.get_partition(config) == 'zen4':
-        nodelist = "10.101.95.[1-10]"
-        metrics = ['CPU_Usage', 'CPU_PowerConsumption', 'CPU_Temperature', 'DRAM_Usage', \
+        nodelist = "10.101.91.[1-20],10.101.92.[1-20],10.101.94.[1-20],10.101.95.[1-10],10.101.96.[1-20],10.101.97.[1-20]"
+        metrics = ['CPU_Usage', 'CPU_PowerConsumption', 'CPU_Temperature', 'Memory_Usage', \
                 'DRAM_PowerConsumption', 'System_PowerConsumption', \
                 'Jobs_Info', 'NodeJobs_Correlation', 'Nodes_State']
 

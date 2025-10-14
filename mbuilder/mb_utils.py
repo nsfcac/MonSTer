@@ -40,40 +40,32 @@ node_time_format_template = {'time': 0,
                             'used_cores': 0,
                             'jobs': [],
                             'cores': [],
-                            # '*_diff' is the difference between the current and the previous value
                             # GPU Usage
                             'gpu_usage_labels': [],
                             'gpu_usage': [],
-                            'gpu_usage_diff': [],
                             # GPU Power Consumption
                             'gpu_power_consumption_labels': [],
                             'gpu_power_consumption': [],
-                            'gpu_power_consumption_diff': [],
                             # GPU Memory Usage
                             'gpu_memory_usage_labels': [],
                             'gpu_memory_usage': [],
-                            'gpu_memory_usage_diff': [],
                             # Temperatures
                             'temperature_labels': [],
                             'temperature': [],
-                            'temperature_diff': [],
                             # CPU Usage
                             'cpu_usage': 0,
-                            'cpu_usage_diff': 0,
                             # CPU Power Consumption
                             'cpu_power_consumption_labels': [],
                             'cpu_power_consumption': [],
-                            'cpu_power_consumption_diff': [],
                             # DRAM Usage
                             'dram_usage': 0,
-                            'dram_usage_diff': 0,
+                            # Memory Usage from Slurm
+                            'memory_usage': 0,
                             # DRAM Power Consumption
                             'dram_power_consumption_labels': [],
                             'dram_power_consumption': [],
-                            'dram_power_consumption_diff': [],
                             # System power consumption
                             'system_power_consumption': 0,
-                            'system_power_consumption_diff': 0,
                             }
 
 
@@ -229,6 +221,7 @@ def reformat_results(partition, results):
     cpu_usage_track = {}
     cpu_power_consumption_track = {}
     dram_usage_track = {}
+    memory_usage_track = {}
     dram_power_consumption_track = {}
     # node_memory_used_track = {}
     all_system_power_track = {}
@@ -251,8 +244,7 @@ def reformat_results(partition, results):
             node_time_records[idx] = copy.deepcopy(node_time_format_template)
             node_time_records[idx].update({'time': int(item['time']),
                                            'node': item['node'],
-                                           'system_power_consumption': item['value'],
-                                           'system_power_consumption_diff': 0})
+                                           'system_power_consumption': item['value']})
             if item['node'] not in node_system_power_track:
                 node_system_power_track[item['node']] = {'power': [item['value']],
                                                          'time': [int(item['time'])]}
@@ -265,14 +257,6 @@ def reformat_results(partition, results):
             else:
                 all_system_power_track[item['time']].append(item['value'])
 
-    for node, records in node_system_power_track.items():
-        power = records['power']
-        diff = [0]
-        diff.extend([power[i] - power[i - 1] for i in range(1, len(power))])
-        records['diff'] = diff
-        for i, time in enumerate(records['time']):
-            node_time_records[f'{node}_{time}']['system_power_consumption_diff'] = diff[i]
-
     # Process the GPU-related metrics if they exist
     if partition == 'h100':
         gpu_usage = results.get(f"idrac.gpuusage", {})
@@ -283,14 +267,12 @@ def reformat_results(partition, results):
                 if idx in node_time_records:
                     node_time_records[idx]['gpu_usage'].append(item['value'])
                     node_time_records[idx]['gpu_usage_labels'].append(label)
-                    node_time_records[idx]['gpu_usage_diff'].append(0)
                 else:
                     node_time_records[idx] = copy.deepcopy(node_time_format_template)
                     node_time_records[idx].update({'time': int(item['time']),
                                                    'node': item['node'],
                                                    'gpu_usage_labels': [label],
-                                                   'gpu_usage': [item['value']],
-                                                   'gpu_usage_diff': [0]})
+                                                   'gpu_usage': [item['value']]})
 
                 # Track GPU usage for each node
                 if item['node'] not in gpu_usage_track:
@@ -303,17 +285,6 @@ def reformat_results(partition, results):
                     else:
                         gpu_usage_track[item['node']][label]['usage'].append(item['value'])
                         gpu_usage_track[item['node']][label]['time'].append(int(item['time']))
-
-            # Calculate the difference for GPU usage
-            for node, records in gpu_usage_track.items():
-                for label, readings in records.items():
-                    usage = readings['usage']
-                    diff = [0]
-                    diff.extend([usage[i] - usage[i - 1] for i in range(1, len(usage))])
-                    readings['diff'] = diff
-                    for i, time in enumerate(records[label]['time']):
-                        idx = node_time_records[f'{node}_{time}']['gpu_usage_labels'].index(label)
-                        node_time_records[f'{node}_{time}']['gpu_usage_diff'][idx] = diff[i]
             
         
         gpu_power_consumption = results.get(f"idrac.powerconsumption", {})
@@ -324,14 +295,12 @@ def reformat_results(partition, results):
                 if idx in node_time_records:
                     node_time_records[idx]['gpu_power_consumption'].append(item['value'])
                     node_time_records[idx]['gpu_power_consumption_labels'].append(label)
-                    node_time_records[idx]['gpu_power_consumption_diff'].append(0)
                 else:
                     node_time_records[idx] = copy.deepcopy(node_time_format_template)
                     node_time_records[idx].update({'time': int(item['time']),
                                                    'node': item['node'],
                                                    'gpu_power_consumption_labels': [label],
-                                                   'gpu_power_consumption': [item['value']],
-                                                   'gpu_power_consumption_diff': [0]})
+                                                   'gpu_power_consumption': [item['value']]})
                 # Track GPU power consumption for each node
                 if item['node'] not in gpu_power_consumption_track:
                     gpu_power_consumption_track[item['node']] = {label: {'power': [item['value']],
@@ -343,16 +312,6 @@ def reformat_results(partition, results):
                     else:
                         gpu_power_consumption_track[item['node']][label]['power'].append(item['value'])
                         gpu_power_consumption_track[item['node']][label]['time'].append(int(item['time']))
-            # Calculate the difference for GPU power consumption
-            for node, records in gpu_power_consumption_track.items():
-                for label, readings in records.items():
-                    power = readings['power']
-                    diff = [0]
-                    diff.extend([power[i] - power[i - 1] for i in range(1, len(power))])
-                    readings['diff'] = diff
-                    for i, time in enumerate(records[label]['time']):
-                        idx = node_time_records[f'{node}_{time}']['gpu_power_consumption_labels'].index(label)
-                        node_time_records[f'{node}_{time}']['gpu_power_consumption_diff'][idx] = diff[i]
 
         gpu_memory_usage = results.get(f"idrac.gpumemoryusage", {})
         if gpu_memory_usage:
@@ -362,14 +321,12 @@ def reformat_results(partition, results):
                 if idx in node_time_records:
                     node_time_records[idx]['gpu_memory_usage'].append(item['value'])
                     node_time_records[idx]['gpu_memory_usage_labels'].append(label)
-                    node_time_records[idx]['gpu_memory_usage_diff'].append(0)
                 else:
                     node_time_records[idx] = copy.deepcopy(node_time_format_template)
                     node_time_records[idx].update({'time': int(item['time']),
                                                    'node': item['node'],
                                                    'gpu_memory_usage_labels': [label],
-                                                   'gpu_memory_usage': [item['value']],
-                                                   'gpu_memory_usage_diff': [0]})
+                                                   'gpu_memory_usage': [item['value']]})
                 # Track GPU memory usage for each node
                 if item['node'] not in gpu_memory_usage_track:
                     gpu_memory_usage_track[item['node']] = {label: {'memory': [item['value']],
@@ -381,16 +338,6 @@ def reformat_results(partition, results):
                     else:
                         gpu_memory_usage_track[item['node']][label]['memory'].append(item['value'])
                         gpu_memory_usage_track[item['node']][label]['time'].append(int(item['time']))
-            # Calculate the difference for GPU memory usage
-            for node, records in gpu_memory_usage_track.items():
-                for label, readings in records.items():
-                    memory = readings['memory']
-                    diff = [0]
-                    diff.extend([memory[i] - memory[i - 1] for i in range(1, len(memory))])
-                    readings['diff'] = diff
-                    for i, time in enumerate(records[label]['time']):
-                        idx = node_time_records[f'{node}_{time}']['gpu_memory_usage_labels'].index(label)
-                        node_time_records[f'{node}_{time}']['gpu_memory_usage_diff'][idx] = diff[i]
 
     temperatures = results.get('idrac.temperaturereading', {})
     if temperatures:
@@ -400,14 +347,12 @@ def reformat_results(partition, results):
             if idx in node_time_records:
                 node_time_records[idx]['temperature'].append(item['value'])
                 node_time_records[idx]['temperature_labels'].append(label)
-                node_time_records[idx]['temperature_diff'].append(0)
             else:
                 node_time_records[idx] = copy.deepcopy(node_time_format_template)
                 node_time_records[idx].update({'time': int(item['time']),
                                                                             'node': item['node'],
                                                                             'temperature_labels': [label],
-                                                                            'temperature': [item['value']],
-                                                                            'temperature_diff': [0]})
+                                                                            'temperature': [item['value']]})
             # Track temperatures for each node
             if item['node'] not in node_temperatures_track:
                 node_temperatures_track[item['node']] = {label: {'temperatures': [item['value']],
@@ -419,30 +364,18 @@ def reformat_results(partition, results):
                 else:
                     node_temperatures_track[item['node']][label]['temperatures'].append(item['value'])
                     node_temperatures_track[item['node']][label]['time'].append(int(item['time']))
-        # Calculate the difference for temperatures
-        for node, records in node_temperatures_track.items():
-            for label, readings in records.items():
-                temperatures = readings['temperatures']
-                diff = [0]
-                diff.extend([temperatures[i] - temperatures[i - 1] for i in range(1, len(temperatures))])
-                readings['diff'] = diff
-                for i, time in enumerate(records[label]['time']):
-                    idx = node_time_records[f'{node}_{time}']['temperature_labels'].index(label)
-                    node_time_records[f'{node}_{time}']['temperature_diff'][idx] = diff[i]
 
     cpu_usage = results.get('idrac.cpuusage', {})
     if cpu_usage:
         for item in cpu_usage:
             idx = f"{item['node']}_{item['time']}"
             if idx in node_time_records:
-                node_time_records[idx].update({'cpu_usage': item['value'],
-                                               'cpu_usage_diff': 0})
+                node_time_records[idx].update({'cpu_usage': item['value']})
             else:
                 node_time_records[idx] = copy.deepcopy(node_time_format_template)
                 node_time_records[idx].update({'time': int(item['time']),
                                                'node': item['node'],
-                                               'cpu_usage': item['value'],
-                                               'cpu_usage_diff': 0})
+                                               'cpu_usage': item['value']})
             # Track CPU usage for each node
             if item['node'] not in cpu_usage_track:
                 cpu_usage_track[item['node']] = {'usage': [item['value']],
@@ -450,14 +383,6 @@ def reformat_results(partition, results):
             else:
                 cpu_usage_track[item['node']]['usage'].append(item['value'])
                 cpu_usage_track[item['node']]['time'].append(int(item['time']))
-        # Calculate the difference for CPU usage
-        for node, records in cpu_usage_track.items():
-            usage = records['usage']
-            diff = [0]
-            diff.extend([usage[i] - usage[i - 1] for i in range(1, len(usage))])
-            records['diff'] = diff
-            for i, time in enumerate(records['time']):
-                node_time_records[f'{node}_{time}']['cpu_usage_diff'] = diff[i]
 
     cpu_power_consumption = results.get('idrac.cpupower', {})
     if cpu_power_consumption:
@@ -467,14 +392,12 @@ def reformat_results(partition, results):
             if idx in node_time_records:
                 node_time_records[idx]['cpu_power_consumption'].append(item['value'])
                 node_time_records[idx]['cpu_power_consumption_labels'].append(label)
-                node_time_records[idx]['cpu_power_consumption_diff'].append(0)
             else:
                 node_time_records[idx] = copy.deepcopy(node_time_format_template)
                 node_time_records[idx].update({'time': int(item['time']),
                                                'node': item['node'],
                                                'cpu_power_consumption_labels': [label],
-                                               'cpu_power_consumption': [item['value']],
-                                               'cpu_power_consumption_diff': [0]})
+                                               'cpu_power_consumption': [item['value']]})
             # Track CPU power consumption for each node
             if item['node'] not in cpu_power_consumption_track:
                 cpu_power_consumption_track[item['node']] = {label: {'power': [item['value']],
@@ -486,30 +409,18 @@ def reformat_results(partition, results):
                 else:
                     cpu_power_consumption_track[item['node']][label]['power'].append(item['value'])
                     cpu_power_consumption_track[item['node']][label]['time'].append(int(item['time']))
-        # Calculate the difference for CPU power consumption
-        for node, records in cpu_power_consumption_track.items():
-            for label, readings in records.items():
-                power = readings['power']
-                diff = [0]
-                diff.extend([power[i] - power[i - 1] for i in range(1, len(power))])
-                readings['diff'] = diff
-                for i, time in enumerate(records[label]['time']):
-                    idx = node_time_records[f'{node}_{time}']['cpu_power_consumption_labels'].index(label)
-                    node_time_records[f'{node}_{time}']['cpu_power_consumption_diff'][idx] = diff[i]
 
     dram_usage = results.get('idrac.memoryusage', {})
     if dram_usage:
         for item in dram_usage:
             idx = f"{item['node']}_{item['time']}"
             if idx in node_time_records:
-                node_time_records[idx].update({'dram_usage': item['value'],
-                                               'dram_usage_diff': 0})
+                node_time_records[idx].update({'dram_usage': item['value']})
             else:
                 node_time_records[idx] = copy.deepcopy(node_time_format_template)
                 node_time_records[idx].update({'time': int(item['time']),
                                                'node': item['node'],
-                                               'dram_usage': item['value'],
-                                               'dram_usage_diff': 0})
+                                               'dram_usage': item['value']})
             # Track DRAM usage for each node
             if item['node'] not in dram_usage_track:
                 dram_usage_track[item['node']] = {'usage': [item['value']],
@@ -517,14 +428,6 @@ def reformat_results(partition, results):
             else:
                 dram_usage_track[item['node']]['usage'].append(item['value'])
                 dram_usage_track[item['node']]['time'].append(int(item['time']))
-        # Calculate the difference for DRAM usage
-        for node, records in dram_usage_track.items():
-            usage = records['usage']
-            diff = [0]
-            diff.extend([usage[i] - usage[i - 1] for i in range(1, len(usage))])
-            records['diff'] = diff
-            for i, time in enumerate(records['time']):
-                node_time_records[f'{node}_{time}']['dram_usage_diff'] = diff[i]
     
     dram_power_consumption = results.get('idrac.drampwr', {})
     if dram_power_consumption:
@@ -534,14 +437,13 @@ def reformat_results(partition, results):
             if idx in node_time_records:
                 node_time_records[idx]['dram_power_consumption'].append(item['value'])
                 node_time_records[idx]['dram_power_consumption_labels'].append(label)
-                node_time_records[idx]['dram_power_consumption_diff'].append(0)
             else:
                 node_time_records[idx] = copy.deepcopy(node_time_format_template)
                 node_time_records[idx].update({'time': int(item['time']),
                                                'node': item['node'],
                                                'dram_power_consumption_labels': [label],
-                                               'dram_power_consumption': [item['value']],
-                                               'dram_power_consumption_diff': [0]})
+                                               'dram_power_consumption': [item['value']]})
+                
             # Track DRAM power consumption for each node
             if item['node'] not in dram_power_consumption_track:
                 dram_power_consumption_track[item['node']] = {label: {'power': [item['value']],
@@ -553,16 +455,25 @@ def reformat_results(partition, results):
                 else:
                     dram_power_consumption_track[item['node']][label]['power'].append(item['value'])
                     dram_power_consumption_track[item['node']][label]['time'].append(int(item['time']))
-        # Calculate the difference for DRAM power consumption
-        for node, records in dram_power_consumption_track.items():
-            for label, readings in records.items():
-                power = readings['power']
-                diff = [0]
-                diff.extend([power[i] - power[i - 1] for i in range(1, len(power))])
-                readings['diff'] = diff
-                for i, time in enumerate(records[label]['time']):
-                    idx = node_time_records[f'{node}_{time}']['dram_power_consumption_labels'].index(label)
-                    node_time_records[f'{node}_{time}']['dram_power_consumption_diff'][idx] = diff[i]
+
+    memory_usage = results.get('slurm.memoryusage', {})
+    if memory_usage:
+        for item in memory_usage:
+            idx = f"{item['node']}_{item['time']}"
+            if idx in node_time_records:
+                node_time_records[idx].update({'memory_usage': item['value']})
+            else:
+                node_time_records[idx] = copy.deepcopy(node_time_format_template)
+                node_time_records[idx].update({'time': int(item['time']),
+                                               'node': item['node'],
+                                               'memory_usage': item['value']})
+            # Track memory usage for each node
+            if item['node'] not in memory_usage_track:
+                memory_usage_track[item['node']] = {'usage': [item['value']],
+                                                    'time': [int(item['time'])]}
+            else:
+                memory_usage_track[item['node']]['usage'].append(item['value'])
+                memory_usage_track[item['node']]['time'].append(int(item['time']))
 
     node_jobs = results.get('slurm.node_jobs', {})
     if node_jobs:
@@ -580,25 +491,6 @@ def reformat_results(partition, results):
                                                'jobs': item['jobs'],
                                                'cores': item['cpus'],
                                                'used_cores': sum(item['cpus'])})
-        
-    # # Calculate the summary
-    # for time, records in all_system_power_track.items():
-    #     summary[time] = {'time': time,
-    #                      'average_system_power': round(sum(records) / len(records), 2),
-    #                      'total_system_power': round(sum(records), 2),
-    #                      'average_memory_used': 0,
-    #                      'total_memory_used': 0}
-
-    # for time, records in all_memory_used_track.items():
-    #     if time in summary:
-    #         summary[time].update({'average_memory_used': round(sum(records) / len(records), 2),
-    #                               'total_memory_used': round(sum(records), 2)})
-    #     else:
-    #         summary[time] = {'time': time,
-    #                          'average_system_power': 0,
-    #                          'total_system_power': 0,
-    #                          'average_memory_used': round(sum(records) / len(records), 2),
-    #                          'total_memory_used': round(sum(records), 2)}
 
     # Calculate the power consumption for each job
     for key, value in node_time_records.items():
@@ -656,5 +548,4 @@ def reformat_results(partition, results):
 
     reformated_results['nodes'] = list(node_time_records.values())
     reformated_results['jobs'] = list(job_time_records.values())
-    # reformated_results['summary'] = list(summary.values())
     return reformated_results
