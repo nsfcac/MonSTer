@@ -209,23 +209,9 @@ def rename_device(metrics_mapping, results):
 
 def reformat_results(partition, results):
     reformated_results = {}
-    summary = {}
     job_nodes_cpus = {}
     node_time_records = {}
     job_time_records = {}
-    node_system_power_track = {}
-    gpu_usage_track = {}
-    gpu_power_consumption_track = {}
-    gpu_memory_usage_track = {}
-    node_temperatures_track = {} 
-    cpu_usage_track = {}
-    cpu_power_consumption_track = {}
-    dram_usage_track = {}
-    memory_usage_track = {}
-    dram_power_consumption_track = {}
-    # node_memory_used_track = {}
-    all_system_power_track = {}
-    all_memory_used_track = {}
 
     slurm_jobs = results.get('slurm.jobs', {})
     if slurm_jobs:
@@ -245,17 +231,6 @@ def reformat_results(partition, results):
             node_time_records[idx].update({'time': int(item['time']),
                                            'node': item['node'],
                                            'system_power_consumption': item['value']})
-            if item['node'] not in node_system_power_track:
-                node_system_power_track[item['node']] = {'power': [item['value']],
-                                                         'time': [int(item['time'])]}
-            else:
-                node_system_power_track[item['node']]['power'].append(item['value'])
-                node_system_power_track[item['node']]['time'].append(int(item['time']))
-
-            if item['time'] not in all_system_power_track:
-                all_system_power_track[item['time']] = [item['value']]
-            else:
-                all_system_power_track[item['time']].append(item['value'])
 
     # Process the GPU-related metrics if they exist
     if partition == 'h100':
@@ -273,20 +248,7 @@ def reformat_results(partition, results):
                                                    'node': item['node'],
                                                    'gpu_usage_labels': [label],
                                                    'gpu_usage': [item['value']]})
-
-                # Track GPU usage for each node
-                if item['node'] not in gpu_usage_track:
-                    gpu_usage_track[item['node']] = {label: {'usage': [item['value']],
-                                                             'time': [int(item['time'])],}}
-                else:
-                    if label not in gpu_usage_track[item['node']]:
-                        gpu_usage_track[item['node']][label] = {'usage': [item['value']],
-                                                                'time': [int(item['time'])]}
-                    else:
-                        gpu_usage_track[item['node']][label]['usage'].append(item['value'])
-                        gpu_usage_track[item['node']][label]['time'].append(int(item['time']))
             
-        
         gpu_power_consumption = results.get(f"idrac.powerconsumption", {})
         if gpu_power_consumption:
             for item in gpu_power_consumption:
@@ -301,17 +263,6 @@ def reformat_results(partition, results):
                                                    'node': item['node'],
                                                    'gpu_power_consumption_labels': [label],
                                                    'gpu_power_consumption': [item['value']]})
-                # Track GPU power consumption for each node
-                if item['node'] not in gpu_power_consumption_track:
-                    gpu_power_consumption_track[item['node']] = {label: {'power': [item['value']],
-                                                                         'time': [int(item['time'])],}}
-                else:
-                    if label not in gpu_power_consumption_track[item['node']]:
-                        gpu_power_consumption_track[item['node']][label] = {'power': [item['value']],
-                                                                            'time': [int(item['time'])]}
-                    else:
-                        gpu_power_consumption_track[item['node']][label]['power'].append(item['value'])
-                        gpu_power_consumption_track[item['node']][label]['time'].append(int(item['time']))
 
         gpu_memory_usage = results.get(f"idrac.gpumemoryusage", {})
         if gpu_memory_usage:
@@ -327,17 +278,6 @@ def reformat_results(partition, results):
                                                    'node': item['node'],
                                                    'gpu_memory_usage_labels': [label],
                                                    'gpu_memory_usage': [item['value']]})
-                # Track GPU memory usage for each node
-                if item['node'] not in gpu_memory_usage_track:
-                    gpu_memory_usage_track[item['node']] = {label: {'memory': [item['value']],
-                                                                    'time': [int(item['time'])],}}
-                else:
-                    if label not in gpu_memory_usage_track[item['node']]:
-                        gpu_memory_usage_track[item['node']][label] = {'memory': [item['value']],
-                                                                       'time': [int(item['time'])]}
-                    else:
-                        gpu_memory_usage_track[item['node']][label]['memory'].append(item['value'])
-                        gpu_memory_usage_track[item['node']][label]['time'].append(int(item['time']))
 
     temperatures = results.get('idrac.temperaturereading', {})
     if temperatures:
@@ -353,17 +293,6 @@ def reformat_results(partition, results):
                                                                             'node': item['node'],
                                                                             'temperature_labels': [label],
                                                                             'temperature': [item['value']]})
-            # Track temperatures for each node
-            if item['node'] not in node_temperatures_track:
-                node_temperatures_track[item['node']] = {label: {'temperatures': [item['value']],
-                                                                 'time': [int(item['time'])],}}
-            else:
-                if label not in node_temperatures_track[item['node']]:
-                    node_temperatures_track[item['node']][label] = {'temperatures': [item['value']],
-                                                                   'time': [int(item['time'])]}
-                else:
-                    node_temperatures_track[item['node']][label]['temperatures'].append(item['value'])
-                    node_temperatures_track[item['node']][label]['time'].append(int(item['time']))
 
     cpu_usage = results.get('idrac.cpuusage', {})
     if cpu_usage:
@@ -376,13 +305,6 @@ def reformat_results(partition, results):
                 node_time_records[idx].update({'time': int(item['time']),
                                                'node': item['node'],
                                                'cpu_usage': item['value']})
-            # Track CPU usage for each node
-            if item['node'] not in cpu_usage_track:
-                cpu_usage_track[item['node']] = {'usage': [item['value']],
-                                                 'time': [int(item['time'])]}
-            else:
-                cpu_usage_track[item['node']]['usage'].append(item['value'])
-                cpu_usage_track[item['node']]['time'].append(int(item['time']))
 
     cpu_power_consumption = results.get('idrac.cpupower', {})
     if cpu_power_consumption:
@@ -398,17 +320,6 @@ def reformat_results(partition, results):
                                                'node': item['node'],
                                                'cpu_power_consumption_labels': [label],
                                                'cpu_power_consumption': [item['value']]})
-            # Track CPU power consumption for each node
-            if item['node'] not in cpu_power_consumption_track:
-                cpu_power_consumption_track[item['node']] = {label: {'power': [item['value']],
-                                                                     'time': [int(item['time'])],}}
-            else:
-                if label not in cpu_power_consumption_track[item['node']]:
-                    cpu_power_consumption_track[item['node']][label] = {'power': [item['value']],
-                                                                        'time': [int(item['time'])]}
-                else:
-                    cpu_power_consumption_track[item['node']][label]['power'].append(item['value'])
-                    cpu_power_consumption_track[item['node']][label]['time'].append(int(item['time']))
 
     dram_usage = results.get('idrac.memoryusage', {})
     if dram_usage:
@@ -421,13 +332,6 @@ def reformat_results(partition, results):
                 node_time_records[idx].update({'time': int(item['time']),
                                                'node': item['node'],
                                                'dram_usage': item['value']})
-            # Track DRAM usage for each node
-            if item['node'] not in dram_usage_track:
-                dram_usage_track[item['node']] = {'usage': [item['value']],
-                                                  'time': [int(item['time'])]}
-            else:
-                dram_usage_track[item['node']]['usage'].append(item['value'])
-                dram_usage_track[item['node']]['time'].append(int(item['time']))
     
     dram_power_consumption = results.get('idrac.drampwr', {})
     if dram_power_consumption:
@@ -444,18 +348,6 @@ def reformat_results(partition, results):
                                                'dram_power_consumption_labels': [label],
                                                'dram_power_consumption': [item['value']]})
                 
-            # Track DRAM power consumption for each node
-            if item['node'] not in dram_power_consumption_track:
-                dram_power_consumption_track[item['node']] = {label: {'power': [item['value']],
-                                                                      'time': [int(item['time'])],}}
-            else:
-                if label not in dram_power_consumption_track[item['node']]:
-                    dram_power_consumption_track[item['node']][label] = {'power': [item['value']],
-                                                                        'time': [int(item['time'])]}
-                else:
-                    dram_power_consumption_track[item['node']][label]['power'].append(item['value'])
-                    dram_power_consumption_track[item['node']][label]['time'].append(int(item['time']))
-
     memory_usage = results.get('slurm.memoryusage', {})
     if memory_usage:
         for item in memory_usage:
@@ -467,13 +359,6 @@ def reformat_results(partition, results):
                 node_time_records[idx].update({'time': int(item['time']),
                                                'node': item['node'],
                                                'memory_usage': item['value']})
-            # Track memory usage for each node
-            if item['node'] not in memory_usage_track:
-                memory_usage_track[item['node']] = {'usage': [item['value']],
-                                                    'time': [int(item['time'])]}
-            else:
-                memory_usage_track[item['node']]['usage'].append(item['value'])
-                memory_usage_track[item['node']]['time'].append(int(item['time']))
 
     node_jobs = results.get('slurm.node_jobs', {})
     if node_jobs:
