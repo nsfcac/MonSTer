@@ -47,7 +47,7 @@ def generate_idrac_metric_sql(table: str,
         JOIN fqdd \
         ON idrac.{table}.fqdd = fqdd.id \
         WHERE timestamp >= '{start}' \
-        AND timestamp < '{end}' \
+        AND timestamp <= '{end}' \
         GROUP BY time, node, label \
         ORDER BY time;"
     return sql
@@ -64,7 +64,7 @@ def generate_slurm_metric_sql(table: str,
             JOIN nodes \
             ON slurm.{table}.nodeid = nodes.nodeid \
             WHERE timestamp >= '{start}' \
-            AND timestamp < '{end}' \
+            AND timestamp <= '{end}' \
             GROUP BY time, node \
             ORDER BY time;"
     return sql

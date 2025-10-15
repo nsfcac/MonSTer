@@ -73,8 +73,8 @@ def metrics_builder(config,
 if __name__ == "__main__":
     config = utils.parse_config()
     # For testing purposes
-    start = '2025-07-30 12:00:00-05'
-    end = '2025-07-31 12:00:00-05'
+    start = '2025-10-14 22:00:00-05'
+    end = '2025-10-14 23:00:00-05'
     interval = '5m'
     aggregation = 'max'
     nodelist = ""
