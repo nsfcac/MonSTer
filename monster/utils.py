@@ -5,6 +5,7 @@ from pathlib import Path
 import hostlist
 import psycopg2
 import yaml
+import json
 
 from monster import logger
 
@@ -310,18 +311,28 @@ def get_ip_hostname_map(connection: str):
 def get_hostname_id_map(connection: str):
     mapping = {}
     try:
-        with psycopg2.connect(connection) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT hostname, nodeid FROM nodes")
-            for (hostname, nodeid) in cur.fetchall():
-                mapping.update({
-                    hostname: nodeid
-                })
-            cur.close()
+        # First try to get the mapping from the file if it exists
+        with open(('hostname_id_map.json'), 'r') as f:
+            mapping = json.load(f)
             return mapping
-    except Exception as err:
-        log.error(f"Cannot generate ip-hostname mapping: {err}")
-
+    except FileNotFoundError as err:
+        # If the file does not exist, get the mapping from the database
+        try:
+            with psycopg2.connect(connection) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT hostname, nodeid FROM nodes")
+                for (hostname, nodeid) in cur.fetchall():
+                    mapping.update({
+                        hostname: nodeid
+                    })
+                cur.close()
+                # Save the mapping to the file for future use
+                with open(('hostname_id_map.json'), 'w') as f:
+                    json.dump(mapping, f)
+        except Exception as err:
+            log.error(f"Cannot generate hostname-id mapping: {err}")
+        return mapping
+    
 
 def partition_list(arr: list, cores: int):
     groups = []
