@@ -2,6 +2,8 @@ import pandas as pd
 import sqlalchemy as db
 import json
 import copy
+from sqlalchemy.engine import Engine
+from typing import Union
 
 from mbuilder import mb_sql
 from monster import utils
@@ -98,10 +100,16 @@ def get_jobs_cpus(row, item):
         return []
 
 
-def query_db(connection: str, sql: str, nodelist: list):
+def query_db(engine: Union[Engine, str], sql: str, nodelist: list):
     record = {}
-    engine = db.create_engine(connection)
-    dataframe = pd.read_sql_query(sql, engine)
+    dispose_after_use = False
+    if isinstance(engine, str):
+        engine = db.create_engine(engine)
+        dispose_after_use = True
+    with engine.connect() as conn:
+        dataframe = pd.read_sql_query(sql, conn)
+    if dispose_after_use:
+        engine.dispose()
 
     # If the dataframe is not empty
     if not dataframe.empty:
@@ -134,30 +142,28 @@ def query_db(connection: str, sql: str, nodelist: list):
     return record
 
 
-def query_db_wrapper(connection: str, start: str, end: str, interval: str,
+def query_db_wrapper(engine: Union[Engine, str], start: str, end: str, interval: str,
                      aggregation: str, nodelist: list, table: str):
     metric = []
     if table == 'slurm.jobs':
         sql = mb_sql.generate_slurm_jobs_sql(start, end)
-        metric = query_db(connection, sql, nodelist)
+        metric = query_db(engine, sql, nodelist)
     elif table == 'slurm.node_jobs':
         sql = mb_sql.generate_slurm_node_jobs_sql(start, end, interval)
-        metric = query_db(connection, sql, nodelist)
+        metric = query_db(engine, sql, nodelist)
     elif table == 'slurm.state':
         sql = mb_sql.generate_slurm_state_sql(start, end, interval)
-        metric = query_db(connection, sql, nodelist)
+        metric = query_db(engine, sql, nodelist)
     elif 'slurm' in table:
         slurm_metric = table.split('.')[1]
         sql = mb_sql.generate_slurm_metric_sql(slurm_metric, start, end,
                                                interval, aggregation)
-        metric = query_db(connection, sql, nodelist)
+        metric = query_db(engine, sql, nodelist)
     elif 'idrac' in table:
         idrac_metric = table.split('.')[1]
         sql = mb_sql.generate_idrac_metric_sql(idrac_metric, start, end,
                                                interval, aggregation)
-        metric = query_db(connection, sql, nodelist)
-    else:
-        pass
+        metric = query_db(engine, sql, nodelist)
     return metric
 
 

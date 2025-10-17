@@ -1,10 +1,13 @@
 import json
 import hostlist
-import multiprocessing
-from itertools import repeat
+from concurrent.futures import ThreadPoolExecutor
+from sqlalchemy import create_engine
 
 from mbuilder import mb_utils
 from monster import utils
+
+
+MAX_DB_WORKERS = 4
 
 
 def metrics_builder(config,
@@ -43,20 +46,23 @@ def metrics_builder(config,
     else:
         return {}
 
-    # Parallelize the queries
-    with multiprocessing.Pool(len(tables)) as pool:
-        query_db_args = zip(repeat(connection),
-                            repeat(start),
-                            repeat(end),
-                            repeat(interval),
-                            repeat(aggregation),
-                            repeat(nodelist),
-                            tables)
-        records = pool.starmap(mb_utils.query_db_wrapper, query_db_args)
+    if not tables:
+        return {}
 
-    # Combine the results
-    for table, record in zip(tables, records):
-        results[table] = record
+    # Parallelize the queries with a bounded thread pool to avoid exhausting DB connections
+    engine = create_engine(connection, pool_pre_ping=True, pool_size=MAX_DB_WORKERS, max_overflow=0)
+
+    def fetch_table(table_name):
+        return table_name, mb_utils.query_db_wrapper(engine, start, end, interval, aggregation, nodelist, table_name)
+
+    max_workers = min(len(tables), MAX_DB_WORKERS) or 1
+
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for table, record in executor.map(fetch_table, tables):
+                results[table] = record
+    finally:
+        engine.dispose()
 
     rename_results = mb_utils.rename_device(metrics_mapping, results)
 
