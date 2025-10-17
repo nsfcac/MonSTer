@@ -18,7 +18,7 @@ def metrics_builder(config,
     tables = []
 
     connection          = utils.init_tsdb_connection(config)
-    ip_hostname_mapping = utils.get_ip_hostname_map(connection)
+    ip_hostname_mapping = utils.get_ip_hostname_map(connection, config)
     metrics_mapping     = mb_utils.get_metrics_map(config)
     nodelist            = hostlist.expand_hostlist(nodelist)
     partition           = utils.get_partition(config)

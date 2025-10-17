@@ -292,27 +292,39 @@ def get_slurm_config(config):
     return config['slurm_rest_api']
 
 
-def get_ip_hostname_map(connection: str):
+def get_ip_hostname_map(connection: str, config: dict):
     mapping = {}
-    try:
-        with psycopg2.connect(connection) as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT bmc_ip_addr, hostname FROM nodes")
-            for (bmc_ip_addr, hostname) in cur.fetchall():
-                mapping.update({
-                    bmc_ip_addr: hostname
-                })
-            cur.close()
-            return mapping
-    except Exception as err:
-        log.error(f"Cannot generate ip-hostname mapping: {err}")
-
-
-def get_hostname_id_map(connection: str):
-    mapping = {}
+    mapping_partition = get_partition(config)
     try:
         # First try to get the mapping from the file if it exists
-        with open(('hostname_id_map.json'), 'r') as f:
+        with open((f'ip_hostname_map_{mapping_partition}.json'), 'r') as f:
+            mapping = json.load(f)
+            return mapping
+    except FileNotFoundError as err:
+        # If the file does not exist, get the mapping from the database
+        try:
+            with psycopg2.connect(connection) as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT bmc_ip_addr, hostname FROM nodes")
+                for (bmc_ip_addr, hostname) in cur.fetchall():
+                    mapping.update({
+                        bmc_ip_addr: hostname
+                    })
+                cur.close()
+                # Save the mapping to the file for future use
+                with open((f'ip_hostname_map_{mapping_partition}.json'), 'w') as f:
+                    json.dump(mapping, f)
+        except Exception as err:
+            log.error(f"Cannot generate ip-hostname mapping: {err}")
+        return mapping
+
+
+def get_hostname_id_map(connection: str, config: dict):
+    mapping = {}
+    mapping_partition = get_partition(config)
+    try:
+        # First try to get the mapping from the file if it exists
+        with open((f'hostname_id_map_{mapping_partition}.json'), 'r') as f:
             mapping = json.load(f)
             return mapping
     except FileNotFoundError as err:
@@ -327,7 +339,7 @@ def get_hostname_id_map(connection: str):
                     })
                 cur.close()
                 # Save the mapping to the file for future use
-                with open(('hostname_id_map.json'), 'w') as f:
+                with open((f'hostname_id_map_{mapping_partition}.json'), 'w') as f:
                     json.dump(mapping, f)
         except Exception as err:
             log.error(f"Cannot generate hostname-id mapping: {err}")

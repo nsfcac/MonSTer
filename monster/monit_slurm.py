@@ -18,8 +18,8 @@ def monit_slurm(config):
     nodelist        = utils.get_nodelist(config)
     partition       = utils.get_partition(config)
     slurm_config    = utils.get_slurm_config(config)
-    ip_hostname_map = utils.get_ip_hostname_map(connection)
-    hostname_id_map = utils.get_hostname_id_map(connection)
+    ip_hostname_map = utils.get_ip_hostname_map(connection, config)
+    hostname_id_map = utils.get_hostname_id_map(connection, config)
     hostname_list   = [ip_hostname_map[ip] for ip in nodelist]
 
     jobs_metrics  = slurm.get_slurm_jobs_metrics(slurm_config, partition)
