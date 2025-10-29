@@ -21,6 +21,8 @@ slurm_rest_api:
   headnode: repacss
   slurm_jobs: /slurm/v0.0.42/jobs/ # Access via /openapi/v3 to get the valid api version
   slurm_nodes: /slurm/v0.0.42/nodes/
+  slurm_job: /slurm/v0.0.42/job/        # Append {job_id} to get specific job info for the current running jobs
+  slurm_db_job: /slurmdb/v0.0.42/job/   # Append {job_id} to get specific job info from SlurmDBD
   openapi: /openapi/v3
 
 # FastAPI Metrics Mapping

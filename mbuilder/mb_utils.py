@@ -142,6 +142,27 @@ def query_db(engine: Union[Engine, str], sql: str, nodelist: list):
     return record
 
 
+def query_db_raw(engine: Union[Engine, str], sql: str):
+    record = {}
+    dispose_after_use = False
+    if isinstance(engine, str):
+        engine = db.create_engine(engine)
+        dispose_after_use = True
+    with engine.connect() as conn:
+        dataframe = pd.read_sql_query(sql, conn)
+    if dispose_after_use:
+        engine.dispose()
+    # If the dataframe is not empty
+    if not dataframe.empty:
+         # Fill all NaN with 0
+        with pd.option_context("future.no_silent_downcasting", True):
+            dataframe = dataframe.fillna(0).infer_objects(copy=False)
+
+        # Convert the dataframe to a dictionary
+        record = dataframe.to_dict(orient='records')
+    return record
+
+
 def query_db_wrapper(engine: Union[Engine, str], start: str, end: str, interval: str,
                      aggregation: str, nodelist: list, table: str):
     metric = []
@@ -164,6 +185,15 @@ def query_db_wrapper(engine: Union[Engine, str], start: str, end: str, interval:
         sql = mb_sql.generate_idrac_metric_sql(idrac_metric, start, end,
                                                interval, aggregation)
         metric = query_db(engine, sql, nodelist)
+    return metric
+
+
+def query_db_raw_wrapper(engine: Union[Engine, str], start: str, end: str, node: str, table: str):
+    metric = []
+    if 'idrac' in table:
+        idrac_metric = table.split('.')[1]
+        sql = mb_sql.generate_idrac_metric_raw_sql(idrac_metric, start, end, node)
+        metric = query_db_raw(engine, sql)
     return metric
 
 

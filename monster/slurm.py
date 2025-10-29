@@ -6,8 +6,7 @@ import requests
 from pgcopy import CopyManager
 from requests.adapters import HTTPAdapter
 
-import logger
-import sql
+from monster import logger, sql
 
 log = logger.get_logger(__name__)
 
