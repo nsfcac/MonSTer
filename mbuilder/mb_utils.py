@@ -37,9 +37,9 @@ DRAM_DEVICE_PWR_MAPPING = {
     'CPU.Socket.2': 'DRAM-1',
 }
 
-node_time_format_template = {'time': 0,
+node_time_format_template = {'time': float('-inf'),
                             'node': '',
-                            'used_cores': 0,
+                            'used_cores': float('-inf'),
                             'jobs': [],
                             'cores': [],
                             # GPU Usage
@@ -55,19 +55,19 @@ node_time_format_template = {'time': 0,
                             'temperature_labels': [],
                             'temperature': [],
                             # CPU Usage
-                            'cpu_usage': 0,
+                            'cpu_usage': float('-inf'),
                             # CPU Power Consumption
                             'cpu_power_consumption_labels': [],
                             'cpu_power_consumption': [],
                             # DRAM Usage
-                            'dram_usage': 0,
+                            'dram_usage': float('-inf'),
                             # Memory Usage from Slurm
-                            'memory_usage': 0,
+                            'memory_usage': float('-inf'),
                             # DRAM Power Consumption
                             'dram_power_consumption_labels': [],
                             'dram_power_consumption': [],
                             # System power consumption
-                            'system_power_consumption': 0,
+                            'system_power_consumption': float('-inf'),
                             }
 
 
@@ -133,9 +133,9 @@ def query_db(engine: Union[Engine, str], sql: str, nodelist: list):
             # Drop the jobs_copy column
             dataframe = dataframe.drop(columns=['jobs_copy'])
 
-        # Fill all NaN with 0
+        # Fill all NaN with float('-inf')
         with pd.option_context("future.no_silent_downcasting", True):
-            dataframe = dataframe.fillna(0).infer_objects(copy=False)
+            dataframe = dataframe.fillna(float('-inf')).infer_objects(copy=False)
 
         # Convert the dataframe to a dictionary
         record = dataframe.to_dict(orient='records')
@@ -154,9 +154,9 @@ def query_db_raw(engine: Union[Engine, str], sql: str):
         engine.dispose()
     # If the dataframe is not empty
     if not dataframe.empty:
-         # Fill all NaN with 0
+         # Fill all NaN with float('-inf')
         with pd.option_context("future.no_silent_downcasting", True):
-            dataframe = dataframe.fillna(0).infer_objects(copy=False)
+            dataframe = dataframe.fillna(float('-inf')).infer_objects(copy=False)
 
         # Convert the dataframe to a dictionary
         record = dataframe.to_dict(orient='records')
@@ -433,9 +433,9 @@ def reformat_results(partition, results):
                     memory_per_core = 0
                     memory_used = 0
                 else:
-                    memory_per_core = job_nodes_cpus[job].get('memory_per_core', 0)
-                    memory_used = job_nodes_cpus[job].get('memory_per_core', 0) * job_nodes_cpus[job].get('used_cores',
-                                                                                                          0)
+                    memory_per_core = job_nodes_cpus[job].get('memory_per_core', float('-inf'))
+                    memory_used = job_nodes_cpus[job].get('memory_per_core', float('-inf')) * job_nodes_cpus[job].get('used_cores',
+                                                                                                          float('-inf'))
                 job_time_records[f'{job}_{timestamp}'] = {
                     'time': int(timestamp),
                     'job_id': job,
@@ -463,7 +463,7 @@ def reformat_results(partition, results):
                         job_time_records[f'{job}_{timestamp}']['power'] / job_time_records[f'{job}_{timestamp}'][
                             'cores'], 2)
                 else:
-                    job_time_records[f'{job}_{timestamp}']['power_per_core'] = 0
+                    job_time_records[f'{job}_{timestamp}']['power_per_core'] = float('-inf')
 
     reformated_results['job_details'] = results.get('slurm.jobs', [])
 

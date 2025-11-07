@@ -2,12 +2,28 @@ import json
 import hostlist
 from concurrent.futures import ThreadPoolExecutor
 from sqlalchemy import create_engine
+from starlette.responses import JSONResponse
 
 from mbuilder import mb_utils
 from monster import utils
 
 
 MAX_DB_WORKERS = 4
+
+def sanitize_floats(obj):
+    import math
+
+    if isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None
+        return obj
+    elif isinstance(obj, dict):
+        return {k: sanitize_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        t = type(obj)
+        return t(sanitize_floats(v) for v in obj)
+    else:
+        return obj
 
 
 def metrics_builder(config,
@@ -73,7 +89,9 @@ def metrics_builder(config,
     # Reformat the results required by the frontend
     reformat_results = mb_utils.reformat_results(partition, rename_results)
 
-    return reformat_results
+    data = sanitize_floats(reformat_results)
+    return JSONResponse(content=data)
+    # return reformat_results
 
 
 if __name__ == "__main__":
