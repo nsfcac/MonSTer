@@ -15,8 +15,13 @@ from monster import utils
 from mbuilder import mb_utils
 
 MAX_DB_WORKERS = 4
-DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config-zen4.yml"
-DEFAULT_METRICS = ["CPU_PowerConsumption", "System_PowerConsumption"]
+
+# DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config-zen4.yml"
+# DEFAULT_METRICS = ["CPU_PowerConsumption", "System_PowerConsumption"]
+
+DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config-h100.yml"
+DEFAULT_METRICS = ["CPU_Usage", "CPU_PowerConsumption", "CPU_Temperature", "DRAM_PowerConsumption"]
+
 LOCAL_TIMEZONE = zoneinfo.ZoneInfo("America/Chicago")
 
 
