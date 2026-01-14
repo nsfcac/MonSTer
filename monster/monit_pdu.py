@@ -4,8 +4,7 @@ import schedule
 from pgcopy import CopyManager
 from datetime import datetime, timezone
 
-import infra
-from monster import utils
+from monster import infra, utils
 
 
 def monit_pdu(config): 

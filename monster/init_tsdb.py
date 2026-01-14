@@ -1,13 +1,10 @@
 import psycopg2
 
-import sql
-import idrac
-import logger
+from monster import sql, idrac, logger, utils, snmp_irc
+
 import schema
 import asyncio
 import hostlist
-from monster import utils
-from monster import snmp_irc
 
 log = logger.get_logger(__name__)
 

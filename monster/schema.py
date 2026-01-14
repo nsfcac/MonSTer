@@ -1,5 +1,4 @@
-import logger
-from monster import utils
+from monster import utils, logger
 
 log = logger.get_logger(__name__)
 

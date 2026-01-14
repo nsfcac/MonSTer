@@ -5,8 +5,7 @@ import schedule
 from pgcopy import CopyManager
 from datetime import datetime, timezone
 
-import idrac
-from monster import utils
+from monster import idrac, utils
 
 
 def monit_idrac_pull(config):

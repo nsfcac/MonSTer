@@ -4,9 +4,7 @@ import schedule
 import urllib3
 from datetime import datetime, timezone
 
-import process
-import slurm
-from monster import utils
+from monster import process, slurm, utils
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 

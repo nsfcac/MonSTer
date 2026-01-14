@@ -13,3 +13,9 @@ sqlalchemy
 pandas
 aiohttp-sse-client
 tqdm
+pysnmp
+pytest
+pytest-asyncio
+pytest-mock
+pytest-cov
+httpx

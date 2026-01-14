@@ -1,6 +1,4 @@
-import sql
 import json
-import logger
 import asyncio
 import multiprocessing
 from itertools import repeat
@@ -14,8 +12,7 @@ from dateutil.parser import parse
 from pgcopy import CopyManager
 from requests.adapters import HTTPAdapter
 
-import snmp_irc
-from monster import utils
+from monster import snmp_irc, utils, logger, sql
 
 log = logger.get_logger(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -161,9 +158,9 @@ def extract_metadata(system_info: dict, bmc_info: dict, node: str):
         # On repacss, the hostname is set to c+number, e.g. c001, and g+number, e.g. g001
         # This part is currently hardcoded for the repacss cluster
         hostname = metrics.get("HostName", None)
-        if (hostname.startswith("c")):
+        if hostname is not None and hostname.startswith("c"):
             new_hostname = bmc_ip_addr.replace("10.101.", "rpc-").replace(".", "-")
-        elif (hostname.startswith("g")):
+        elif hostname is not None and hostname.startswith("g"):
             new_hostname = bmc_ip_addr.replace("10.101.", "rpg-").replace(".", "-")
         else:
             # This is only for the h100-build node, as it does not have a valid hostname

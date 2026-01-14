@@ -1,0 +1,11 @@
+[run]
+branch = True
+source =
+    monster
+    mbuilder
+
+[report]
+omit =
+    */tests/*
+    */__init__.py
+    setup.py
