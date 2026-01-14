@@ -130,31 +130,35 @@ def test_update_metadata_idrac(mocker):
 
     insert_mock = mocker.patch("monster.sql.insert_metadata")
 
-    update_metadata(conn, nodes_metadata, "nodes")
+    sql.update_metadata(conn, nodes_metadata, "nodes")
 
     conn.cursor.assert_called_once()
     cur.execute.assert_called_once()
 
     executed_sql = cur.execute.call_args[0][0]
 
-    assert executed_sql.startswith("UPDATE nodes SET")
-    assert "hostname = 'node1'" in executed_sql
-    assert "status = 'OK'" in executed_sql
-    assert "WHERE bmc_ip_addr = '10.0.0.1'" in executed_sql
+    expected_executed_sql = "UPDATE nodes SET hostname = 'node1', status = 'OK' WHERE bmc_ip_addr = '10.0.0.1';"
 
+    assert executed_sql == expected_executed_sql
     insert_mock.assert_not_called()
 
 
 def test_generate_source_table_sql():
     sql_str = sql.generate_source_table_sql()
-    assert "CREATE TABLE IF NOT EXISTS source" in sql_str
-    assert "id SERIAL PRIMARY KEY" in sql_str
+
+    expected_sql_str = "CREATE TABLE IF NOT EXISTS source \
+          (id SERIAL PRIMARY KEY, source TEXT NOT NULL);"
+
+    assert sql_str == expected_sql_str
 
 
 def test_generate_fqdd_table_sql():
     sql_str = sql.generate_fqdd_table_sql()
-    assert "CREATE TABLE IF NOT EXISTS fqdd" in sql_str
-    assert "id SERIAL PRIMARY KEY" in sql_str
+
+    expected_sql_str = "CREATE TABLE IF NOT EXISTS fqdd \
+          (id SERIAL PRIMARY KEY, fqdd TEXT NOT NULL);"
+
+    assert sql_str == expected_sql_str
 
 
 @patch("monster.sql.CopyManager")

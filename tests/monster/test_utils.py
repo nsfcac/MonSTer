@@ -1,3 +1,4 @@
+import builtins
 import os
 import pytest
 from unittest.mock import patch, MagicMock, mock_open
@@ -179,6 +180,56 @@ def test_get_metric_dtype_mapping():
     mock_cursor.close.assert_called_once()
 
 
+def test_get_fqdd_source_map():
+    rows = [
+        (1, "CPU.Socket.1"),
+        (2, "CPU.Socket.2"),
+    ]
+
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = rows
+
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+
+    result = utils.get_fqdd_source_map(mock_conn, table="fqdd_table")
+
+    assert result == {
+        "CPU.Socket.1": 1,
+        "CPU.Socket.2": 2,
+    }
+
+    mock_cursor.execute.assert_called_once_with(
+        "SELECT id, fqdd_table FROM fqdd_table"
+    )
+    mock_cursor.close.assert_called_once()
+
+
+def test_get_infra_nodeid_map():
+    rows = [
+        (101, "10.0.0.1"),
+        (102, "10.0.0.2"),
+    ]
+
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = rows
+
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+
+    result = utils.get_infra_nodeid_map(mock_conn)
+
+    assert result == {
+        "10.0.0.1": 101,
+        "10.0.0.2": 102,
+    }
+
+    mock_cursor.execute.assert_called_once_with(
+        "SELECT nodeid, ip_addr FROM nodes"
+    )
+    mock_cursor.close.assert_called_once()
+
+
 def test_get_slurm_config():
     config = {"slurm_rest_api": {"ip": "x"}}
     assert utils.get_slurm_config(config) == {"ip": "x"}
@@ -217,6 +268,54 @@ def test_get_ip_hostname_map_from_db(mocker, monkeypatch):
     assert result == {"1.1.1.1": "node1"}
 
 
+def test_get_hostname_id_map_from_file():
+    mapping = {"node1": 1, "node2": 2}
+
+    with patch.object(utils, "get_partition", return_value="test"), \
+            patch.object(builtins, "open", mock_open(read_data=json.dumps(mapping))), \
+            patch.object(json, "load", return_value=mapping):
+        result = utils.get_hostname_id_map("fake-conn", config={})
+
+    assert result == mapping
+
+
+def test_get_hostname_id_map_from_db_and_write_file():
+    mapping = [("node1", 1), ("node2", 2)]
+
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = mapping
+
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_conn.__enter__.return_value = mock_conn
+
+    m_open = mock_open()
+    m_open.side_effect = [FileNotFoundError, m_open.return_value]
+
+    with patch.object(utils, "get_partition", return_value="test"), \
+            patch.object(builtins, "open", m_open), \
+            patch.object(json, "dump") as mock_dump, \
+            patch.object(utils.psycopg2, "connect", return_value=mock_conn):
+        result = utils.get_hostname_id_map("conn", config={})
+
+    assert result == {"node1": 1, "node2": 2}
+    mock_cursor.execute.assert_called_once_with(
+        "SELECT hostname, nodeid FROM nodes"
+    )
+    mock_dump.assert_called_once()
+
+
+def test_get_hostname_id_map_db_failure_logs_error():
+    with patch.object(utils, "get_partition", return_value="test"), \
+            patch.object(builtins, "open", side_effect=FileNotFoundError), \
+            patch.object(utils.psycopg2, "connect", side_effect=Exception("db down")), \
+            patch.object(utils.log, "error") as mock_log:
+        result = utils.get_hostname_id_map("conn", config={})
+
+    assert result == {}
+    mock_log.assert_called_once()
+
+
 def test_partition_list_exact_division():
     arr = [1, 2, 3, 4]
     groups = utils.partition_list(arr, 2)
@@ -234,6 +333,30 @@ def test_cast_value_type():
     assert utils.cast_value_type("123", "INT") == 123
     assert utils.cast_value_type("12.3", "REAL") == 12.3
     assert utils.cast_value_type("abc", "TEXT") == "abc"
+
+
+def test_get_snmp_oids():
+    fetched_metrics = [
+        ("cpu_usage", "1.3.6.1.4.1.1"),
+        ("mem_usage", "1.3.6.1.4.1.2"),
+    ]
+
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = fetched_metrics
+
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+
+    result = utils.get_snmp_oids(mock_conn)
+
+    assert result == {
+        "cpu_usage": "1.3.6.1.4.1.1",
+        "mem_usage": "1.3.6.1.4.1.2",
+    }
+    mock_cursor.execute.assert_called_once_with(
+        "SELECT metric_id, snmp_oid FROM metrics_definition"
+    )
+    mock_cursor.close.assert_called_once()
 
 
 def test_oid_string_to_tuple_valid():

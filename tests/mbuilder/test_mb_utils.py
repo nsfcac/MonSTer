@@ -2,167 +2,170 @@ import pytest
 import pandas as pd
 from unittest.mock import MagicMock
 from mbuilder import mb_utils
-
-
-@pytest.fixture
-def simple_df():
-    return pd.DataFrame([
-        {"node": "n1", "time": "2024-01-01", "value": 10}
-    ])
+from sqlalchemy.engine import Engine
 
 
 def test_get_metrics_map():
-    cfg = {"fastapi": {"a": 1}}
-    assert mb_utils.get_metrics_map(cfg) == {"a": 1}
+    config = {"fastapi": {"idrac": {"GPU_Usage": "gpu_usage"}}}
+
+    metrics_map = (mb_utils.get_metrics_map(config))
+
+    expected_metrics_map = config['fastapi']
+
+    assert metrics_map == expected_metrics_map
 
 
-def test_get_jobs_cpus_jobs():
+def test_get_jobs_cpus():
     row = {
-        "jobs_copy": [[1, 2]],
+        "jobs_copy": [["job_1", "job_2"]],
         "cpus": [[4, 8]]
     }
-    assert mb_utils.get_jobs_cpus(row, "jobs") == [1, 2]
+
+    get_jobs = mb_utils.get_jobs_cpus(row, "jobs")
+    get_cpus = mb_utils.get_jobs_cpus(row, "cpus")
+    get_unknown = mb_utils.get_jobs_cpus(row, "unknown")
+
+    expected_jobs = ["job_1", "job_2"]
+    expected_cpus = [4, 8]
+
+    assert get_jobs == expected_jobs
+    assert get_cpus == expected_cpus
+    assert get_unknown == []
 
 
-def test_get_jobs_cpus_cpus():
-    row = {
-        "jobs_copy": [[1, 2]],
-        "cpus": [[4, 8]]
-    }
-    assert mb_utils.get_jobs_cpus(row, "cpus") == [4, 8]
-
-
-def test_get_jobs_cpus_invalid_item():
-    row = {}
-    assert mb_utils.get_jobs_cpus(row, "x") == []
-
-
-def test_query_db_with_engine_string(mocker, simple_df):
-    engine = MagicMock()
-    engine.connect.return_value.__enter__.return_value = MagicMock()
-
-    mocker.patch("sqlalchemy.create_engine", return_value=engine)
-    mocker.patch("pandas.read_sql_query", return_value=simple_df)
-
-    result = mb_utils.query_db("db://url", "select", ["n1"])
-    assert result[0]["node"] == "n1"
-    assert isinstance(result[0]["time"], int)
-
-
-def test_query_db_jobs_processing(mocker):
+def test_query_db_with_engine_object(mocker):
     df = pd.DataFrame([
         {
-            "node": "n1",
-            "time": "2024-01-01",
-            "jobs": [[1, 2]],
-            "cpus": [[4, 8]]
+            "node": "node1",
+            "time": "2024-01-01 00:00:00",
+            "jobs": [["job_1", "job_2"]],
+            "cpus": [[4, 8]],
+            "value": 100,
+            "metric": None
+        },
+        {
+            "node": "node2",
+            "time": "2024-01-02 00:00:00",
+            "jobs": [["job_3", "job_4"]],
+            "cpus": [[12, 16]],
+            "value": None,
+            "metric": 200
         }
     ])
-
-    engine = MagicMock()
+    engine = MagicMock(spec=Engine)
     engine.connect.return_value.__enter__.return_value = MagicMock()
     mocker.patch("pandas.read_sql_query", return_value=df)
 
-    result = mb_utils.query_db(engine, "sql", ["n1"])
-    assert result[0]["jobs"] == [1, 2]
-    assert result[0]["cpus"] == [4, 8]
+    result = mb_utils.query_db(engine, "SELECT * FROM table", ["node1"])
+
+    expected_result = [{
+        "node": "node1",
+        "time": 1704067200,
+        "jobs": ["job_1", "job_2"],
+        "cpus": [4, 8],
+        "value": 100,
+        "metric": float('-inf')
+    }]
+
+    assert result == expected_result
+    engine.dispose.assert_not_called()
 
 
-def test_query_db_wrapper_slurm_jobs(mocker):
-    mocker.patch(
-        "mbuilder.mb_sql.generate_slurm_jobs_sql",
-        return_value="SQL"
-    )
+def test_query_db_empty_dataframe(mocker):
+    empty_df = pd.DataFrame()
+    engine = MagicMock(spec=Engine)
+    engine.connect.return_value.__enter__.return_value = MagicMock()
+    mocker.patch("pandas.read_sql_query", return_value=empty_df)
 
-    query_mock = mocker.patch(
-        "mbuilder.mb_utils.query_db",
-        return_value=[{"a": 1}]
-    )
+    result = mb_utils.query_db(engine, "SELECT * FROM table", ["n1"])
 
-    result = mb_utils.query_db_wrapper(
-        "e", "s", "e", "i", "a", ["n1"], "slurm.jobs"
-    )
-
-    query_mock.assert_called_once()
-    assert result == [{"a": 1}]
+    assert result == {}
 
 
-def test_query_db_wrapper_slurm_node_jobs(mocker):
-    mocker.patch(
-        "mbuilder.mb_sql.generate_slurm_node_jobs_sql",
-        return_value="SQL"
-    )
+def test_query_db_engine_string(mocker):
+    df = pd.DataFrame([{"node": "node1", "value": 100}, {"node": "node2"}])
+    mock_engine = MagicMock(spec=Engine)
+    mock_engine.connect.return_value.__enter__.return_value = MagicMock()
+    mocker.patch("sqlalchemy.create_engine", return_value=mock_engine)
+    mocker.patch("pandas.read_sql_query", return_value=df)
 
-    query_mock = mocker.patch(
-        "mbuilder.mb_utils.query_db",
-        return_value=[{"b": 2}]
-    )
+    result = mb_utils.query_db("postgresql://host/db", "SELECT *", ["node1", "node2"])
 
-    result = mb_utils.query_db_wrapper(
-        "e", "s", "e", "i", "a", ["n1"], "slurm.node_jobs"
-    )
+    expected_result = [{
+        "node": "node1",
+        "value": 100,
+    }, {
+        "node": "node2",
+        "value": float('-inf'),
+    }]
 
-    query_mock.assert_called_once()
-    assert result == [{"b": 2}]
-
-
-def test_query_db_wrapper_slurm_state(mocker):
-    mocker.patch(
-        "mbuilder.mb_sql.generate_slurm_state_sql",
-        return_value="SQL"
-    )
-
-    query_mock = mocker.patch(
-        "mbuilder.mb_utils.query_db",
-        return_value=[{"c": 3}]
-    )
-
-    result = mb_utils.query_db_wrapper(
-        "e", "s", "e", "i", "a", ["n1"], "slurm.state"
-    )
-
-    query_mock.assert_called_once()
-    assert result == [{"c": 3}]
+    assert result == expected_result
+    mock_engine.dispose.assert_called_once()
 
 
-def test_query_db_wrapper_idrac_metric(mocker):
-    # Patch SQL generator
-    mocker.patch(
-        "mbuilder.mb_sql.generate_idrac_metric_sql",
-        return_value="SQL"
-    )
-
-    query_mock = mocker.patch(
-        "mbuilder.mb_utils.query_db",
-        return_value=[{"d": 4}]
-    )
+@pytest.mark.parametrize('table,expected_sql,should_call', [
+    ('slurm.jobs', 'SQL_JOBS', True),
+    ('slurm.node_jobs', 'SQL_NODE_JOBS', True),
+    ('slurm.state', 'SQL_STATE', True),
+    ('slurm.cpu', 'SQL_SLURM_METRIC', True),
+    ('slurm.memory', 'SQL_SLURM_METRIC', True),
+    ('idrac.power', 'SQL_IDRAC_METRIC', True),
+    ('idrac.temp', 'SQL_IDRAC_METRIC', True),
+    ('unknown.table', None, False),
+    ('random', None, False),
+])
+def test_query_db_wrapper_parameterized(mocker, table, expected_sql, should_call):
+    nodelist = ["node1", "node2"]
+    engine = MagicMock()
+    mocker.patch('mbuilder.mb_sql.generate_slurm_jobs_sql', return_value='SQL_JOBS')
+    mocker.patch('mbuilder.mb_sql.generate_slurm_node_jobs_sql', return_value='SQL_NODE_JOBS')
+    mocker.patch('mbuilder.mb_sql.generate_slurm_state_sql', return_value='SQL_STATE')
+    mocker.patch('mbuilder.mb_sql.generate_slurm_metric_sql', return_value='SQL_SLURM_METRIC')
+    mocker.patch('mbuilder.mb_sql.generate_idrac_metric_sql', return_value='SQL_IDRAC_METRIC')
+    mock_query_db = mocker.patch("mbuilder.mb_utils.query_db", return_value=[{'data': 'result'}])
 
     result = mb_utils.query_db_wrapper(
-        "dummy_engine", "start", "end", "interval", "aggregation", ["n1"], "idrac.metric"
+        engine, '2024-01-01', '2024-01-02', '1h', 'avg', nodelist, table
     )
 
-    query_mock.assert_called_once()
-    assert result == [{"d": 4}]
+    if should_call:
+        mock_query_db.assert_called_once_with(engine, expected_sql, nodelist)
+        assert result == [{'data': 'result'}]
+    else:
+        mock_query_db.assert_not_called()
+        assert result == []
 
 
-def test_rename_device_gpu_and_cpu():
-    results = {
+def test_rename_device():
+    results_input = {
         "idrac.gpuusage": [{"label": "Video.Slot.31-1", "value": 10}],
         "idrac.temperaturereading": [
-            {"label": "iDRAC.Embedded.1#CPU1Temp", "value": 50}
+            {"label": "iDRAC.Embedded.1#CPU1Temp", "value": 50},
+            {"label": "iDRAC.Embedded.1#GPUTemp33"}
         ],
-        "idrac.cpuusage": [{"label": "X", "value": 1}]
+        "idrac.cpuusage": [{"label": "X", "value": 1}],
+        "idrac.cpupower": [{"label": "CPU.Socket.1", "value": 2}],
+        "idrac.systempowerconsumption": [{"value": 2}],
+        "idrac.drampwr": [],
+        "idrac.memoryusage": [{"label": "ABC"}]
     }
 
-    out = mb_utils.rename_device({}, results)
+    result = mb_utils.rename_device({}, results_input)
 
-    assert out["idrac.gpuusage"][0]["label"] == "GPU-0"
-    assert out["idrac.temperaturereading"][0]["label"] == "CPU-0"
-    assert out["idrac.cpuusage"][0]["label"] == "CPU"
+    expected_result = {
+        "idrac.gpuusage": [{'label': "GPU-0", "value": 10}],
+        "idrac.temperaturereading": [{"label": "CPU-0", "value": 50}, {"label": "GPU-1"}],
+        "idrac.cpuusage": [{"label": "CPU", "value": 1}],
+        "idrac.cpupower": [{"label": "CPU-0", "value": 2}],
+        "idrac.systempowerconsumption": [{"label": "System", "value": 2}],
+        "idrac.drampwr": [],
+        "idrac.memoryusage": [{"label": "DRAM"}]
+    }
+    assert result == expected_result
 
 
-def test_reformat_results_basic():
-    results = {
+def test_reformat_results_not_h100():
+    results_input = {
         "slurm.jobs": [
             {
                 "job_id": 1,
@@ -174,86 +177,101 @@ def test_reformat_results_basic():
         ],
         "idrac.systempowerconsumption": [
             {"node": "n1", "time": 100, "value": 200}
-        ]
-    }
-
-    out = mb_utils.reformat_results("h100", results)
-
-    assert "nodes" in out
-    assert "jobs" in out
-    assert out["nodes"][0]["system_power_consumption"] == 200
-
-
-def test_reformat_results_gpu_usage():
-    results = {
-        "idrac.systempowerconsumption": [
-            {"node": "n1", "time": 1, "value": 100}
-        ],
-        "idrac.gpuusage": [
-            {"node": "n1", "time": 1, "label": "GPU-0", "value": 50}
-        ]
-    }
-
-    out = mb_utils.reformat_results("h100", results)
-    node = out["nodes"][0]
-
-    assert node["gpu_usage"] == [50]
-    assert node["gpu_usage_labels"] == ["GPU-0"]
-
-
-def test_reformat_results_node_time_records():
-    results = {
-        "slurm.jobs": [
-            {
-                "job_id": "job1",
-                "nodes": ["n1"],
-                "cpus": 2,
-                "memory_per_cpu": 4,
-                "node_count": 1
-            },
-            {
-                "job_id": "job2",
-                "nodes": ["n1"],
-                "cpus": 2,
-                "memory_per_cpu": 2,
-                "node_count": 1
-            }
-        ],
-        "idrac.systempowerconsumption": [
-            {"node": "n1", "time": 10, "value": 100}
         ],
         "idrac.temperaturereading": [
-            {"node": "n1", "time": 10, "label": "CPU-0", "value": 70}
+            {"label": "xyz", "node": "n1", "time": 100, "value": 111}
         ],
-        "idrac.cpupower": [
-            {"node": "n1", "time": 10, "label": "CPU-0", "value": 40}
+        "idrac.memoryusage": [
+            {"node": "n1", "time": 100, "value": 222}
         ],
-        "idrac.powerconsumption": [
-            {"node": "n1", "time": 10, "label": "GPU-0", "value": 30}
+        "idrac.drampwr": [
+            {"label": "a", "node": "n1", "time": 100, "value": 123}
         ],
         "slurm.node_jobs": [
-            {"node": "n1", "time": 10, "jobs": ["job1", "job2"], "cpus": [2, 2]}
+            {"label": "l1", "node": "n1", "time": 100, "jobs": [1, 2], "cpus": [3, 4]}
         ]
     }
 
-    out = mb_utils.reformat_results("h100", results)
+    result = mb_utils.reformat_results("unknown", results_input)
 
-    node = out["nodes"][0]
-    assert node["temperature"] == [70]
-    assert node["temperature_labels"] == ["CPU-0"]
-    assert node["cpu_power_consumption"] == [40]
-    assert node["cpu_power_consumption_labels"] == ["CPU-0"]
-    assert node["gpu_power_consumption"] == [30]
-    assert node["gpu_power_consumption_labels"] == ["GPU-0"]
+    expected_result = {
+        "job_details": [{
+            "job_id": 1,
+            "nodes": ["n1"],
+            "cpus": 4,
+            "memory_per_cpu": 2,
+            "node_count": 1
+        }],
+        "nodes": [
+            {'time': 100, 'node': 'n1', 'used_cores': 7, 'jobs': [1, 2], 'cores': [3, 4], 'gpu_usage_labels': [],
+             'gpu_usage': [], 'gpu_power_consumption_labels': [], 'gpu_power_consumption': [],
+             'gpu_memory_usage_labels': [], 'gpu_memory_usage': [], 'temperature_labels': ["xyz"], 'temperature': [111],
+             'cpu_usage': float('-inf'), 'cpu_power_consumption_labels': [], 'cpu_power_consumption': [],
+             'dram_usage': 222, 'memory_usage': float('-inf'), 'dram_power_consumption_labels': ["a"],
+             'dram_power_consumption': [123], 'system_power_consumption': 200}],
+        "jobs": [{"time": 100,
+                  "job_id": 1,
+                  "data": [{
+                      'node': "n1",
+                      'power': 85.71,
+                      'cores': 3,
+                  }],
+                  "power": 85.71,
+                  "cores": 3,
+                  "power_per_core": 12.24,
+                  "memory_per_core": 2,
+                  "memory_used": 8
+                  }, {"time": 100,
+                      "job_id": 2,
+                      "data": [{
+                          'node': "n1",
+                          'power': 114.29,
+                          'cores': 4,
+                      }],
+                      "power": 114.29,
+                      "cores": 4,
+                      "power_per_core": 16.33,
+                      "memory_per_core": 0,
+                      "memory_used": 0
+                      }
+                 ]
+    }
 
-    jobs = {job["job_id"]: job for job in out["jobs"]}
-    assert jobs["job1"]["power"] > 0
-    assert jobs["job1"]["cores"] == 2
-    assert jobs["job2"]["power"] > 0
-    assert jobs["job2"]["cores"] == 2
+    assert result == expected_result
 
-    for job in jobs.values():
-        assert job["power_per_core"] > 0
 
-    for job in jobs.values():
-        assert len(job["data"]) == 1
+def test_reformat_results_h100():
+    results_input = {
+        "idrac.gpuusage": [
+            {"label": "l1", "node": "n1", "time": 123, "value": 1}
+        ],
+        "idrac.powerconsumption": [
+            {"label": "l2", "node": "n1", "time": 123, "value": 2}
+        ],
+        "idrac.gpumemoryusage": [
+            {"label": "l3", "node": "n1", "time": 123, "value": 3}
+        ],
+        "idrac.cpuusage": [
+            {"node": "n1", "time": 123, "value": 4}
+        ],
+        "idrac.cpupower": [
+            {"label": "l1", "node": "n1", "time": 123, "value": 5}
+        ]
+    }
+
+    result = mb_utils.reformat_results("h100", results_input)
+
+    expected_result = {
+        "job_details": [],
+        "nodes": [
+            {'time': 123, 'node': 'n1', 'used_cores': float('-inf'), 'jobs': [], 'cores': [],
+             'gpu_usage_labels': ["l1"],
+             'gpu_usage': [1], 'gpu_power_consumption_labels': ["l2"], 'gpu_power_consumption': [2],
+             'gpu_memory_usage_labels': ["l3"], 'gpu_memory_usage': [3], 'temperature_labels': [], 'temperature': [],
+             'cpu_usage': 4, 'cpu_power_consumption_labels': ["l1"], 'cpu_power_consumption': [5],
+             'dram_usage': float('-inf'), 'memory_usage': float('-inf'), 'dram_power_consumption_labels': [],
+             'dram_power_consumption': [], 'system_power_consumption': float('-inf')}],
+        "jobs": []
+    }
+
+    assert result == expected_result

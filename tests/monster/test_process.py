@@ -123,6 +123,59 @@ def test_extract_fqdd_source_push():
     assert source == "XYZ"
 
 
+def test_process_all_idracs_pull(mocker):
+    mocker.patch(
+        "monster.process.parallel_process_idrac_pull",
+        side_effect=[
+            [{"record_1": 1}],
+            [{"record_2": 2}],
+        ],
+    )
+
+    idrac_api = ["idrac_api"]
+    nodelist = ["node1", "node2"]
+    redfish_report = ["redfish_1", "redfish_2"]
+
+    result = process.process_all_idracs_pull(
+        idrac_api=idrac_api,
+        timestamp=100,
+        idrac_metrics=["idrac_temp", "idrac_cpu"],
+        nodelist=nodelist,
+        redfish_report=redfish_report,
+        nodeid_map={},
+        source_map={},
+        fqdd_map={}
+    )
+
+    expected_result = {"idrac.idrac_temp": [{"record_1": 1}], "idrac.idrac_cpu": [{"record_2": 2}]}
+
+    assert result == expected_result
+
+
+def test_parallel_process_idrac_pull(mocker):
+    pool_mock = mocker.MagicMock()
+    pool_mock.starmap.return_value = [[{"record_1": 1}], [{"record_2": 2}]]
+
+    pool_ctx = mocker.MagicMock()
+    pool_ctx.__enter__.return_value = pool_mock
+
+    mocker.patch("monster.process.multiprocessing.Pool", return_value=pool_ctx)
+
+    result = process.parallel_process_idrac_pull(
+        timestamp=100,
+        idrac_metric="idrac_temp",
+        nodelist=["node1"],
+        reports=["report1"],
+        nodeid_map={"node1": 1},
+        source_map={},
+        fqdd_map={}
+    )
+
+    expected_result = [{"record_1": 1}, {'record_2': 2}]
+
+    assert result == expected_result
+
+
 def test_process_node_idrac_pull():
     report = {
         "Fans": [{"FanName": "Fan1", "@odata.type": "source1", "Reading": 10}]
@@ -131,6 +184,52 @@ def test_process_node_idrac_pull():
         1, "Fans", "node1", report, {"node1": 1}, {"source1": 1}, {"Fan1": 1}
     )
     expected_result = [(1, 1, 1, 1, 10)]
+    assert result == expected_result
+
+
+def test_process_all_pdu_pull(mocker):
+    mocker.patch(
+        "monster.process.parallel_process_pdu_pull",
+        side_effect=[
+            [{"record_1": 1}],
+            [{"record_2": 2}],
+        ],
+    )
+
+    pdu_api = ["pdu_api"]
+    redfish_report = ["redfish_1", "redfish_2"]
+
+    result = process.process_all_pdu_pull(
+        pdu_api=pdu_api,
+        timestamp=100,
+        pdu_list=["pdu_1", "pdu_2"],
+        redfish_report=redfish_report,
+        nodeid_map={"node1": 1, "node2": 2},
+    )
+
+    expected_result = {"pdu.pdu": [{"record_1": 1}]}
+
+    assert result == expected_result
+
+
+def test_parallel_process_pdu_pull(mocker):
+    pool_mock = mocker.MagicMock()
+    pool_mock.starmap.return_value = [[{"record_1": 1}], [{"record_2": 2}]]
+
+    pool_ctx = mocker.MagicMock()
+    pool_ctx.__enter__.return_value = pool_mock
+
+    mocker.patch("monster.process.multiprocessing.Pool", return_value=pool_ctx)
+
+    result = process.parallel_process_pdu_pull(
+        timestamp=100,
+        pdu_list=["pdu_1"],
+        reports=["report1"],
+        nodeid_map={"node1": 1}
+    )
+
+    expected_result = [{"record_1": 1}, {'record_2': 2}]
+
     assert result == expected_result
 
 

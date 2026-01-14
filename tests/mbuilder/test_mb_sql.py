@@ -1,45 +1,125 @@
 from mbuilder import mb_sql
+from dateutil.parser import parse
 
 
 def test_generate_slurm_jobs_sql():
-    sql_query = mb_sql.generate_slurm_jobs_sql("2023-01-01 00:00:00", "2023-01-02 00:00:00")
-    assert "SELECT * FROM slurm.jobs" in sql_query
-    assert "start_time" in sql_query
-    assert "end_time" in sql_query
-    assert "1672552800" in sql_query  # 2023-01-01 00:00:00 UTC epoch
-    assert "1672639200" in sql_query  # 2023-01-02 00:00:00 UTC epoch
+    start = "2023-01-01 00:00:00"
+    end = "2023-01-02 00:00:00"
+
+    sql_query = mb_sql.generate_slurm_jobs_sql(start, end)
+
+    start_epoch = int(parse(start).timestamp())
+    end_epoch = int(parse(end).timestamp())
+
+    expected_sql = f"SELECT * FROM slurm.jobs WHERE start_time < {end_epoch} AND end_time > {start_epoch};"
+
+    assert expected_sql == sql_query
 
 
 def test_generate_slurm_node_jobs_sql():
-    sql_query = mb_sql.generate_slurm_node_jobs_sql("2023-01-01", "2023-01-02", "5 minutes")
-    assert "time_bucket_gapfill('5 minutes'" in sql_query
-    assert "jsonb_agg(jobs)" in sql_query
-    assert "JOIN nodes" in sql_query
+    start = "2023-01-01 00:00:00"
+    end = "2023-01-02 00:00:00"
+    interval = "5 minutes"
+
+    sql_query = mb_sql.generate_slurm_node_jobs_sql(start, end, interval)
+
+    expected_sql = f"SELECT time_bucket_gapfill('{interval}', timestamp) AS time, \
+            nodes.hostname as node, jsonb_agg(jobs) AS jobs, jsonb_agg(cpus) AS cpus \
+            FROM slurm.node_jobs \
+            JOIN nodes \
+            ON slurm.node_jobs.nodeid = nodes.nodeid \
+            WHERE timestamp >= '{start}' \
+            AND timestamp <= '{end}' \
+            GROUP BY time, node \
+            ORDER BY time;"
+
+    assert expected_sql == sql_query
 
 
 def test_generate_slurm_state_sql():
-    sql_query = mb_sql.generate_slurm_state_sql("2023-01-01", "2023-01-02", "1 hour")
-    assert "time_bucket_gapfill('1 hour'" in sql_query
-    assert "jsonb_agg(value)" in sql_query
-    assert "JOIN nodes" in sql_query
+    start = "2023-01-01 00:00:00"
+    end = "2023-01-02 00:00:00"
+    interval = "1 hour"
+
+    sql_query = mb_sql.generate_slurm_state_sql(start, end, interval)
+
+    expected_sql = f"SELECT time_bucket_gapfill('{interval}', timestamp) AS time, \
+            nodes.hostname as node, jsonb_agg(value) AS value \
+            FROM slurm.state \
+            JOIN nodes \
+            ON slurm.state.nodeid = nodes.nodeid \
+            WHERE timestamp >= '{start}' \
+            AND timestamp <= '{end}' \
+            GROUP BY time, node \
+            ORDER BY time;"
+
+    assert expected_sql == sql_query
 
 
 def test_generate_idrac_metric_sql():
-    sql_query = mb_sql.generate_idrac_metric_sql("fans", "2023-01-01", "2023-01-02", "1h", "AVG")
-    assert "idrac.fans" in sql_query
-    assert "AVG(value)" in sql_query
-    assert "GROUP BY time, node, label" in sql_query
+    table = "fans"
+    start = "2023-01-01 00:00:00"
+    end = "2023-01-02 00:00:00"
+    interval = "1h"
+    aggregation = "avg"
+
+    sql_query = mb_sql.generate_idrac_metric_sql(table, start, end, interval, aggregation)
+
+    expected_sql = f"SELECT time_bucket_gapfill('{interval}', timestamp) AS time, \
+        nodes.hostname as node, fqdd.fqdd AS label, {aggregation}(value) AS value \
+        FROM idrac.{table} \
+        JOIN nodes \
+        ON idrac.{table}.nodeid = nodes.nodeid \
+        JOIN fqdd \
+        ON idrac.{table}.fqdd = fqdd.id \
+        WHERE timestamp >= '{start}' \
+        AND timestamp <= '{end}' \
+        GROUP BY time, node, label \
+        ORDER BY time;"
+
+    assert expected_sql == sql_query
 
 
 def test_generate_idrac_metric_raw_sql():
-    sql_query = mb_sql.generate_idrac_metric_raw_sql("fans", "2023-01-01", "2023-01-02", "node1")
-    assert "idrac.fans" in sql_query
-    assert "nodes.hostname = 'node1'" in sql_query
-    assert "ORDER BY time" in sql_query
+    table = "temp"
+    start = "2023-01-01 00:00:00"
+    end = "2023-01-02 00:00:00"
+    node = "node1"
+
+    sql_query = mb_sql.generate_idrac_metric_raw_sql(table, start, end, node)
+
+    expected_sql = f"SELECT timestamp AS time, \
+        nodes.hostname as node, fqdd.fqdd AS label, value \
+        FROM idrac.{table} \
+        JOIN nodes \
+        ON idrac.{table}.nodeid = nodes.nodeid \
+        JOIN fqdd \
+        ON idrac.{table}.fqdd = fqdd.id \
+        WHERE timestamp >= '{start}' \
+        AND timestamp <= '{end}' \
+        AND nodes.hostname = '{node}' \
+        ORDER BY time;"
+
+    assert expected_sql == sql_query
 
 
 def test_generate_slurm_metric_sql():
-    sql_query = mb_sql.generate_slurm_metric_sql("cpu_load", "2023-01-01", "2023-01-02", "15m", "MAX")
-    assert "slurm.cpu_load" in sql_query
-    assert "MAX(value)" in sql_query
-    assert "GROUP BY time, node" in sql_query
+    table = "cpu"
+    start = "2023-01-01 00:00:00"
+    end = "2023-01-02 00:00:00"
+    interval = "15m"
+    aggregation = "max"
+
+    sql_query = mb_sql.generate_slurm_metric_sql(table, start, end, interval, aggregation)
+
+    expected_sql = f"SELECT time_bucket_gapfill('{interval}', timestamp) AS time, \
+            nodes.hostname as node, {aggregation}(value) AS value \
+            FROM slurm.{table} \
+            JOIN nodes \
+            ON slurm.{table}.nodeid = nodes.nodeid \
+            WHERE timestamp >= '{start}' \
+            AND timestamp <= '{end}' \
+            GROUP BY time, node \
+            ORDER BY time;"
+
+    assert expected_sql == sql_query
