@@ -2,8 +2,7 @@ import asyncio
 import psycopg2
 import random
 
-import logger
-import process
+from monster import logger, process
 
 log = logger.get_logger(__name__)
 

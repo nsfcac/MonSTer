@@ -1,0 +1,99 @@
+name: Monster Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run tests with coverage
+        run: |
+          source venv/bin/activate
+          pytest \
+            --cov \
+            --cov-branch \
+            --cov-report=html \
+            --cov-fail-under=65
+
+      - name: Coverage summary
+        run: |
+          source venv/bin/activate
+          python << 'EOF'
+          import coverage
+          import os
+          from pathlib import Path
+
+          cov = coverage.Coverage(data_file=".coverage")
+          cov.load()
+
+          lines = []
+          lines.append("| File | Statements | Missing | Coverage |")
+          lines.append("|------|------------|---------|----------|")
+
+          total_statements = 0
+          total_missing = 0
+          total_executed = 0
+
+          for f in sorted(cov.get_data().measured_files()):
+              analysis = cov._analyze(f)
+              stmt = analysis.numbers.n_statements
+              miss = analysis.numbers.n_missing
+              executed = analysis.numbers.n_executed
+              percent = round(executed / stmt * 100) if stmt else 0
+
+              total_statements += stmt
+              total_missing += miss
+              total_executed += executed
+
+              path_parts = Path(f).parts
+              short_path = Path(f).name
+
+              for i in range(len(path_parts) - 1, -1, -1):
+                  if path_parts[i] in ('mbuilder', 'monster'):
+                      short_path = '/'.join(path_parts[i:])
+                      break
+
+              lines.append(f"| {short_path} | {stmt} | {miss} | {percent}% |")
+
+          total_percent = round(total_executed / total_statements * 100) if total_statements else 0
+          lines.append(f"| **TOTAL** | {total_statements} | {total_missing} | **{total_percent}%** |")
+
+          summary = "\n".join(lines)
+
+          summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_file:
+              with open(summary_file, "a") as f:
+                  f.write("## Test Coverage (Per File)\n")
+                  f.write(summary + "\n")
+          else:
+              print("GITHUB_STEP_SUMMARY not found")
+              print(summary)
+          EOF
+
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 7
