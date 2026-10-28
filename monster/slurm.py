@@ -1,5 +1,7 @@
 import json
+import os
 import subprocess
+import tempfile
 import time
 
 import requests
@@ -30,8 +32,19 @@ def get_slurm_token(slurm_config: dict):
                 'token': token
             }
 
-            with open('./token.json', 'w') as f:
+            with tempfile.NamedTemporaryFile(
+                mode='w',
+                dir='.',
+                prefix='.token-',
+                suffix='.json',
+                delete=False,
+            ) as f:
                 json.dump(token_record, f, indent=4)
+                f.flush()
+                os.fsync(f.fileno())
+                token_path = f.name
+
+            os.replace(token_path, './token.json')
 
             return token
         except Exception as err:
@@ -40,19 +53,20 @@ def get_slurm_token(slurm_config: dict):
 
 
 def read_slurm_token(slurm_config: dict):
-    token = ""
     try:
         with open('./token.json', 'r') as f:
             token_record = json.load(f)
             time_interval = int(time.time()) - token_record['time']
             if time_interval >= 3600:
-                token = get_slurm_token(slurm_config)
+                return get_slurm_token(slurm_config)
             else:
                 token = token_record['token']
-    # Catch the exception when the file does not exist
-    except FileNotFoundError:
-        token = get_slurm_token(slurm_config)
-    return token
+                if not isinstance(token, str) or not token:
+                    raise ValueError("token is missing or empty")
+                return token
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError, ValueError) as err:
+        log.error(f"Invalid or missing Slurm token cache; refreshing it: {err}")
+        return get_slurm_token(slurm_config)
 
 
 def call_slurm_api(slurm_config: dict, token: str, url: str):

@@ -1,7 +1,7 @@
 __pycache__
-.env
-.venv
-prev
+.env/
+.venv/
+prev/
 *.log*
 *.DS_Store
 *.vscode
@@ -21,3 +21,4 @@ test*
 OIDs.txt
 mb_api_h100.py*
 mb_api_zen4.py*
+*.pre*
